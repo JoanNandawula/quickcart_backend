@@ -40,10 +40,11 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'store',
+ 
 ]
 
 MIDDLEWARE = [
-        'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -75,16 +76,17 @@ WSGI_APPLICATION = 'quickcart_backend.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+
 import os
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'quickcart'),
-        'USER': os.environ.get('DB_USER', 'quickuser'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'quickpass123'),
-        'HOST': os.environ.get('DB_HOST', 'db'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
+        'NAME': os.getenv('POSTGRES_DB', 'quickcart'),
+        'USER': os.getenv('POSTGRES_USER', 'quickuser'),
+        'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'quickpass123'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),  # fallback to localhost
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
 
@@ -132,3 +134,5 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 CORS_ALLOW_ALL_ORIGINS = True
+AUTH_USER_MODEL = 'store.User'
+

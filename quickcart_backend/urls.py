@@ -1,5 +1,5 @@
 """
-URL configuration for quickcart_backend project.
+URL configuration for quickcahttps://github.com/microsoft/pyright/blob/main/docs/configuration.md#reportMissingImportsrt_backend project.
 
 The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/5.2/topics/http/urls/
@@ -14,9 +14,18 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
+# quickcart_backend/urls.py
+
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
+from store.views import home  # ✅ since the view is in the store app
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('', include('store.urls')),  # If this is your products API
+    path('', home, name='home'),  # This handles http://127.0.0.1:8000/
 ]
+
+

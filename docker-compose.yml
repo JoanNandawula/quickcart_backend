@@ -6,22 +6,25 @@ services:
       POSTGRES_USER: quickuser
       POSTGRES_PASSWORD: quickpass123
       POSTGRES_DB: quickcart
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"  # Expose PostgreSQL on port 5432
-
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql  # ensure this line is correctly indented
   backend:
     build: .
+    volumes:
+      - .:/app  # Mount your local backend code to container
     environment:
       DATABASE_URL: postgres://quickuser:quickpass123@db:5432/quickcart
     depends_on:
       - db
     ports:
       - "8000:8000"
-    command: python manage.py runserver 0.0.0.0:8000  # Ensure Django runs on all network interfaces
-    # Delay startup until db service is ready
+    command: python manage.py runserver 0.0.0.0:8000
     restart: on-failure
+    stdin_open: true
+    tty: true
 
 volumes:
   postgres_data:
