@@ -10,11 +10,15 @@ class User(AbstractUser):
 
 # Product model
 class Product(models.Model):
-    name = models.CharField(max_length=255)
-    image = models.ImageField(upload_to='products/')
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)  # Add this for detailed info
+    image = models.ImageField(upload_to='product_images/')
     price = models.DecimalField(max_digits=10, decimal_places=2)
     category = models.CharField(max_length=100)
     stock = models.PositiveIntegerField()
+
+    def __str__(self):
+        return self.name
 
     def __str__(self):
         return self.name

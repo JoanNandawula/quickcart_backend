@@ -6,6 +6,8 @@ from .models import Product, Cart, CartItem, Order, OrderItem
 from django.contrib.auth.models import User
 from django.contrib.sessions.models import Session
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET
+
 
 def show_session_key(request):
     if not request.session.session_key:
@@ -17,6 +19,21 @@ def home(request):
 
 
 # List products (simplified, no serializer)
+
+
+
+def product_detail(request, id):
+    product = get_object_or_404(Product, pk=id)
+    data = {
+        "id": product.id,
+        "name": product.name,
+        "image_url": product.image.url,
+        "price": product.price,
+        "category": product.category,
+        "stock": product.stock
+    }
+    return JsonResponse(data)
+
 def product_list(request):
     products = Product.objects.all()
     product_data = [
