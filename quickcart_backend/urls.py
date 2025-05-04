@@ -20,12 +20,19 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from store.views import home  # ✅ since the view is in the store app
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
 
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('store.urls')),  # If this is your products API
     path('', home, name='home'),  # This handles http://127.0.0.1:8000/
+    path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+
 ]
 
 

@@ -1,121 +1,142 @@
-# quickcart_backend/views.py
-
-from django.shortcuts import render, get_object_or_404
-from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404
+from django.http import HttpResponse
+from django.contrib.auth import get_user_model
+from rest_framework import generics, status
+from rest_framework.response import Response
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework.generics import RetrieveAPIView
 from .models import Product, Cart, CartItem, Order, OrderItem
-from django.contrib.auth.models import User
-from django.contrib.sessions.models import Session
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_GET
+from .serializers import ProductSerializer, UserSerializer
 
+User = get_user_model()
 
-def show_session_key(request):
-    if not request.session.session_key:
-        request.session.create()
-    return JsonResponse({"session_key": request.session.session_key})
+# JWT login with extra user info
+class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        data.update({
+            'username': self.user.username,
+            'email': self.user.email,
+            'is_customer': getattr(self.user, 'is_customer', True),
+            'is_admin_user': getattr(self.user, 'is_admin_user', False),
+        })
+        return data
 
+class MyTokenObtainPairView(TokenObtainPairView):
+    serializer_class = MyTokenObtainPairSerializer
+
+# Register user
+class RegisterView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [AllowAny]
+
+# Welcome view
 def home(request):
-    return HttpResponse("<h1>Welcome to QuickCart Backend</h1><p>Use the /api/ endpoints.</p>")
+    return HttpResponse("Welcome to the Home page!")
 
-
-# List products (simplified, no serializer)
-
-
-
-def product_detail(request, id):
-    product = get_object_or_404(Product, pk=id)
-    data = {
-        "id": product.id,
-        "name": product.name,
-        "image_url": product.image.url,
-        "price": product.price,
-        "category": product.category,
-        "stock": product.stock
-    }
-    return JsonResponse(data)
-
+# Product list
+@api_view(['GET'])
+@permission_classes([AllowAny])
 def product_list(request):
     products = Product.objects.all()
-    product_data = [
+    data = [
         {
-            "name": product.name,
-            "image_url": product.image.url,
-            "price": product.price,
-            "category": product.category,
-            "stock": product.stock
-        }
-        for product in products
+            "id": p.id,
+            "name": p.name,
+            "image_url": p.image.url if p.image else "",
+            "price": p.price,
+            "category": p.category,
+            "stock": p.stock
+        } for p in products
     ]
-    return JsonResponse({"products": product_data})
+    return Response({"products": data})
 
-# View cart items (for user session or logged-in user)
-def view_cart(request):
-    cart = Cart.objects.get(user=request.user) if request.user.is_authenticated else Cart.objects.get(session_key=request.session.session_key)
-    cart_items = CartItem.objects.filter(cart=cart)
-    items = [
-        {
-            "product": item.product.name,
-            "quantity": item.quantity,
-            "subtotal": item.subtotal
-        } for item in cart_items
-    ]
-    return JsonResponse({"cart_items": items})
+# Product detail
+class ProductDetailView(RetrieveAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+    permission_classes = [AllowAny]
 
 # Add product to cart
-
-
-@csrf_exempt  # Optional: only use this if testing without CSRF token from frontend
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def add_to_cart(request, product_id):
-    if request.method == 'POST':
-        product = get_object_or_404(Product, pk=product_id)
-        
-        # Check if user is logged in or use session-based cart
-        if request.user.is_authenticated:
-            cart, created = Cart.objects.get_or_create(user=request.user)
-        else:
-            cart_key = request.session.session_key
-            if not cart_key:
-                request.session.create()
-            cart, created = Cart.objects.get_or_create(session_key=cart_key)
-        
-        # Add or update the CartItem
-        cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product)
-        if not created:
-            cart_item.quantity += 1
-        cart_item.save()
+    product = get_object_or_404(Product, pk=product_id)
+    cart, _ = Cart.objects.get_or_create(user=request.user)
+    cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product)
 
-        return JsonResponse({"message": f"Added {product.name} to your cart."})
+    if not created:
+        cart_item.quantity += 1
+    cart_item.save()
 
-    return JsonResponse({"error": "Only POST method is allowed"}, status=405)
+    return Response({"message": f"Added {product.name} to your cart."}, status=status.HTTP_200_OK)
 
+# View cart
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def view_cart(request):
+    try:
+        cart = Cart.objects.get(user=request.user)
+        cart_items = CartItem.objects.filter(cart=cart)
+        items = []
+        total = 0
+        for item in cart_items:
+            subtotal = item.product.price * item.quantity
+            items.append({
+                "product": item.product.name,
+                "quantity": item.quantity,
+                "subtotal": subtotal
+            })
+            total += subtotal
+        return Response({"cart_items": items, "total": total})
+    except Cart.DoesNotExist:
+        return Response({"cart_items": [], "total": 0})
 
-# Place order (for checking out)
+# Place order
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def place_order(request):
-    if request.method == 'POST' and request.user.is_authenticated:
+    try:
         cart = Cart.objects.get(user=request.user)
         cart_items = CartItem.objects.filter(cart=cart)
 
-        # Create the order
+        if not cart_items:
+            return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
+
         order = Order.objects.create(user=request.user, status='pending', total=0)
-
-        # Add OrderItems to the order
         total = 0
-        for cart_item in cart_items:
-            order_item = OrderItem.objects.create(
+        order_items_data = []
+
+        for item in cart_items:
+            subtotal = item.product.price * item.quantity
+            OrderItem.objects.create(
                 order=order,
-                product=cart_item.product,
-                quantity=cart_item.quantity,
-                subtotal=cart_item.subtotal
+                product=item.product,
+                quantity=item.quantity,
+                subtotal=subtotal
             )
-            total += order_item.subtotal
+            total += subtotal
+            order_items_data.append({
+                "product": item.product.name,
+                "quantity": item.quantity,
+                "subtotal": subtotal
+            })
 
-        # Update order total and status
         order.total = total
-        order.status = 'completed'  # For simplicity, we're marking it as completed
+        order.status = 'completed'
         order.save()
-
-        # Clear the cart after the order is placed
         cart_items.delete()
 
-        return JsonResponse({"message": f"Order placed successfully. Total: {total}"})
-    return JsonResponse({"error": "Failed to place order"}, status=400)
+        return Response({
+            "message": "Order placed successfully",
+            "order_id": order.id,
+            "total": total,
+            "items": order_items_data
+        })
+
+    except Cart.DoesNotExist:
+        return Response({"error": "Cart not found"}, status=status.HTTP_400_BAD_REQUEST)

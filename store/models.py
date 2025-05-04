@@ -3,11 +3,13 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
-# Custom User model with roles
 class User(AbstractUser):
-    is_admin = models.BooleanField(default=False)
-    is_customer = models.BooleanField(default=True)
-
+    ROLE_CHOICES = (
+        ('admin', 'Admin'),
+        ('customer', 'Customer'),
+    )
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='customer')
+    is_verified = models.BooleanField(default=False)  
 # Product model
 class Product(models.Model):
     name = models.CharField(max_length=100)
