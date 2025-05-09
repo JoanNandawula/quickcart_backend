@@ -10,18 +10,30 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework.generics import RetrieveAPIView
 from .models import Product, Cart, CartItem, Order, OrderItem
 from .serializers import ProductSerializer, UserSerializer
+from rest_framework import viewsets, permissions
+from .serializers import AdminProductSerializer
+from .serializers import AdminOrderSerializer
+from django.views.decorators.csrf import csrf_exempt
 
+class AdminOrderListView(generics.ListAPIView):
+    queryset = Order.objects.all().order_by('-created_at')
+    serializer_class = AdminOrderSerializer
+    permission_classes = [permissions.IsAdminUser]
 User = get_user_model()
 
 # JWT login with extra user info
+class AdminProductViewSet(viewsets.ModelViewSet):
+    queryset = Product.objects.all()
+    serializer_class = AdminProductSerializer
+    permission_classes = [permissions.IsAdminUser]
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
         data.update({
             'username': self.user.username,
             'email': self.user.email,
-            'is_customer': getattr(self.user, 'is_customer', True),
-            'is_admin_user': getattr(self.user, 'is_admin_user', False),
+            'is_customer': getattr(self.user, 'is_customer', False),
+            'is_admin_user': getattr(self.user, 'is_admin_user', True),
         })
         return data
 
@@ -35,6 +47,8 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [AllowAny]
 
 # Welcome view
+
+@csrf_exempt
 def home(request):
     return HttpResponse("Welcome to the Home page!")
 
